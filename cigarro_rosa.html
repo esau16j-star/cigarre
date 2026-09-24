@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cigarro rosa</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: rgb(27, 20, 32);
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    max-width: 100vw;
+    max-height: 100vh;
+    width: auto;
+    height: auto;
+    aspect-ratio: 820 / 520;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<canvas id="c" width="820" height="520"></canvas>
+
+<script>
+/* ---------- Personalizacion ---------- */
+const MENSAJE = "un cigarro rosa para ti";   // cambia el texto que quieras
+const ANGULO  = -14;                          // inclinacion del cigarro (grados)
+const CENTRO  = [410, 330];                   // posicion del cigarro
+/* ------------------------------------- */
+
+const ANCHO = 820, ALTO = 520;
+const FONDO = [27, 20, 32];
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+const rgb = c => "rgb(" + c.map(v => Math.max(0, Math.min(255, Math.round(v)))).join(",") + ")";
+const mezclar = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// Generador con semilla para que las estrellas no cambien de sitio
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rnd = mulberry32(7);
+const estrellas = Array.from({ length: 45 }, () => ({
+  x: Math.floor(rnd() * ANCHO),
+  y: Math.floor(rnd() * (ALTO / 2)),
+  b: 0.15 + rnd() * 0.35
+}));
+
+const ang = ANGULO * Math.PI / 180;
+const cosA = Math.cos(ang), sinA = Math.sin(ang);
+const P = (x, y) => [CENTRO[0] + x * cosA - y * sinA, CENTRO[1] + x * sinA + y * cosA];
+
+function rect(x1, x2, y1, y2, color) {
+  const pts = [P(x1, y1), P(x2, y1), P(x2, y2), P(x1, y2)];
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < 4; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = rgb(color);
+  ctx.fill();
+}
+
+function circulo(x, y, r, fill) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+let humo = [], cenizas = [], t = 0, calada = 0;
+
+function nuevoHumo(fuerte) {
+  const [x, y] = P(200, 0);
+  humo.push({
+    x: x + rand(-3, 3),
+    y: y + rand(-4, 2),
+    r: rand(4, 8),
+    vida: 0,
+    max: rand(140, 230) * (fuerte ? 1.2 : 1),
+    fase: rand(0, Math.PI * 2),
+    vel: rand(0.7, 1.4),
+    deriva: rand(-0.15, 0.35)
+  });
+}
+
+function nuevaCeniza() {
+  const [x, y] = P(rand(196, 212), rand(-6, 6));
+  cenizas.push({ x, y, vx: rand(-0.3, 0.6), vy: rand(0.2, 0.8), vida: 0 });
+}
+
+function darCalada() {
+  calada = 1;
+  for (let i = 0; i < 12; i++) nuevoHumo(true);
+}
+
+/* ---------- Dibujo ---------- */
+function dibujarFondo() {
+  ctx.fillStyle = rgb(FONDO);
+  ctx.fillRect(0, 0, ANCHO, ALTO);
+  for (const e of estrellas) {
+    const b = e.b * (0.6 + 0.4 * Math.sin(t / 30 + e.x));
+    ctx.fillStyle = rgb(mezclar(FONDO, [255, 220, 240], b));
+    ctx.fillRect(e.x, e.y, 2, 2);
+  }
+}
+
+function dibujarHumo() {
+  for (const s of humo) {
+    const k = s.vida / s.max;
+    const col = mezclar([235, 205, 225], FONDO, Math.min(1, k * 1.05));
+    circulo(s.x, s.y, s.r, rgb(col));
+  }
+}
+
+function dibujarCigarro() {
+  // sombra suave
+  const [sx, sy] = P(0, 34);
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, 230, 9, 0, 0, Math.PI * 2);
+  ctx.fillStyle = rgb(mezclar(FONDO, [0, 0, 0], 0.35));
+  ctx.fill();
+
+  // filtro
+  rect(-210, -110, -18, 18, [236, 190, 130]);
+  rect(-210, -110, -18, -8, [247, 214, 165]);
+  rect(-210, -110, 10, 18, [205, 155, 100]);
+  for (let i = -200; i < -115; i += 9) {
+    for (const j of [-9, 0, 9]) {
+      const off = (Math.floor(i / 9) % 2 !== 0) ? 4 : 0;
+      const [x, y] = P(i, j + off);
+      circulo(x, y, 1.4, rgb([190, 130, 80]));
+    }
+  }
+  // banda dorada
+  rect(-112, -100, -18, 18, [222, 178, 92]);
+  rect(-108, -104, -18, 18, [245, 210, 130]);
+
+  // cuerpo rosa
+  rect(-100, 196, -18, 18, [255, 143, 190]);
+  rect(-100, 196, -18, -8, [255, 186, 214]);
+  rect(-100, 196, 9, 18, [222, 100, 155]);
+  rect(150, 154, -18, 18, [235, 120, 170]);
+
+  // ceniza
+  rect(196, 214, -16, 16, [196, 194, 200]);
+  rect(196, 214, -16, -8, [225, 224, 230]);
+  rect(196, 214, 8, 16, [150, 148, 156]);
+
+  // brasa (parpadea)
+  const parpadeo = 0.6 + 0.4 * Math.sin(t / 6) + rand(-0.08, 0.08);
+  const intensidad = Math.min(1.4, parpadeo + calada * 0.6);
+  const [ex, ey] = P(214, 0);
+  const capas = [[44, [120, 30, 20]], [30, [200, 60, 20]], [18, [255, 130, 30]], [9, [255, 220, 120]]];
+  for (const [radio, base] of capas) {
+    const col = mezclar(FONDO, base, Math.min(1, intensidad * 0.85));
+    circulo(ex, ey, radio * (0.9 + 0.1 * intensidad), rgb(col));
+  }
+  rect(206, 216, -14, 14, mezclar([80, 30, 25], [255, 120, 40], Math.min(1, intensidad)));
+}
+
+function dibujarCenizas() {
+  for (const c of cenizas) {
+    const k = c.vida / 90;
+    ctx.fillStyle = rgb(mezclar([215, 213, 220], FONDO, k));
+    ctx.fillRect(c.x, c.y, 2.5, 2.5);
+  }
+}
+
+function dibujarTexto() {
+  ctx.textAlign = "center";
+  ctx.fillStyle = rgb([255, 170, 205]);
+  ctx.font = "italic 20px Georgia, serif";
+  ctx.fillText(MENSAJE, ANCHO / 2, ALTO - 42);
+  ctx.fillStyle = rgb([130, 105, 135]);
+  ctx.font = "10px Consolas, Menlo, monospace";
+  ctx.fillText("[espacio] o toca la pantalla para dar una calada", ANCHO / 2, ALTO - 18);
+}
+
+/* ---------- Bucle ---------- */
+function actualizar() {
+  t++;
+  calada *= 0.96;
+
+  if (t % 3 === 0) nuevoHumo(false);
+  for (const s of humo) {
+    s.vida++;
+    s.y -= s.vel;
+    s.x += Math.sin(s.fase + s.vida / 22) * 0.9 + s.deriva;
+    s.r += 0.22;
+  }
+  humo = humo.filter(s => s.vida < s.max);
+
+  if (Math.random() < 0.03) nuevaCeniza();
+  for (const c of cenizas) {
+    c.vida++;
+    c.x += c.vx;
+    c.y += c.vy;
+  }
+  cenizas = cenizas.filter(c => c.vida < 90);
+}
+
+function dibujar() {
+  dibujarFondo();
+  dibujarHumo();
+  dibujarCigarro();
+  dibujarCenizas();
+  dibujarTexto();
+}
+
+// Pasos fijos de ~30 fps, igual en cualquier pantalla
+const PASO = 1000 / 30;
+let previo = performance.now(), acum = 0;
+function frame(ahora) {
+  acum += Math.min(ahora - previo, 250);
+  previo = ahora;
+  while (acum >= PASO) { actualizar(); acum -= PASO; }
+  dibujar();
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); darCalada(); } });
+canvas.addEventListener("pointerdown", darCalada);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
